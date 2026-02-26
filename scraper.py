@@ -1,77 +1,74 @@
 import feedparser
-from deep_translator import GoogleTranslator
 import json
 from datetime import datetime
 import requests
+from deep_translator import GoogleTranslator
+import time
 
-def fetch_all_perspectives():
-    print("Starting the multi-source scraper...")
+def fetch_massive_news():
+    print("Starting the massive multi-source scraper...")
     news_list = []
-    translator = GoogleTranslator(source='auto', target='en')
     
-    # We must use a custom User-Agent so social media sites don't block our free scraper
+    # Standard headers to bypass blocks
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
 
-    # --- OUR MASTER LIST OF SOURCES ---
+    # --- THE AGGREGATOR LINKS ---
+    # These two Google News links automatically pull from HUNDREDS of verified publishers
     sources = [
         {
-            "name": "Jerusalem Post",
-            "url": "https://www.jpost.com/rss/rssfeedsfrontpage.aspx",
+            "name": "Google News Aggregator (Israel)",
+            "url": "https://news.google.com/rss/search?q=Israel+when:1d&hl=en-US&gl=US&ceid=US:en",
             "country": "Israel",
-            "status": "Verified Media"
+            "status": "Verified Media",
+            "needs_translation": False
         },
         {
-            "name": "BBC Persian",
-            "url": "https://feeds.bbci.co.uk/persian/rss.xml",
+            "name": "Google News Aggregator (Iran)",
+            "url": "https://news.google.com/rss/search?q=Iran+when:1d&hl=en-US&gl=US&ceid=US:en",
             "country": "Iran",
-            "status": "Verified Media"
-        },
-        {
-            "name": "Mehr News Agency",
-            "url": "https://en.mehrnews.com/rss",
-            "country": "Iran",
-            "status": "State-Affiliated Media"
-        },
-        {
-            "name": "Israeli Citizens (Reddit)",
-            "url": "https://www.reddit.com/r/Israel/new/.rss",
-            "country": "Israel",
-            "status": "Unverified / Citizen Voice"
+            "status": "Verified Media",
+            "needs_translation": False
         },
         {
             "name": "Iranian Citizens (Reddit)",
             "url": "https://www.reddit.com/r/NewIran/new/.rss",
             "country": "Iran",
-            "status": "Unverified / Citizen Voice"
+            "status": "Unverified / Citizen Voice",
+            "needs_translation": True
         }
     ]
 
+    translator = GoogleTranslator(source='auto', target='en')
+
     for source in sources:
-        print(f"Fetching data from: {source['name']}")
+        print(f"Fetching from: {source['name']}")
         try:
-            # Fetch the data using requests to bypass basic blocks
             response = requests.get(source['url'], headers=headers, timeout=10)
             feed = feedparser.parse(response.content)
             
-            # Grab the top 3 most recent posts from EACH source
-            for entry in feed.entries[:3]:
+            # We will grab the top 15 stories from each aggregator (45 total per run)
+            for entry in feed.entries[:15]:
                 raw_title = entry.title
+                raw_summary = entry.get('summary', 'No summary provided.')
                 
-                # We use a trick: if there is no summary, we just use the title again to prevent crashes
-                raw_summary = entry.get('summary', 'No summary provided by user.') 
-                
-                # Translate everything to English just in case it's in Hebrew or Farsi
-                english_title = translator.translate(raw_title)
-                
-                # Clean up the summary (Social media RSS can have messy HTML)
-                english_summary = translator.translate(raw_summary[:500]) # Limit to 500 chars for speed
-                
+                # Google News puts the actual publisher name in the 'source' tag
+                actual_publisher = entry.get('source', {}).get('title', source['name'])
+
+                # Only translate if it's the citizen/local sources to prevent getting blocked
+                if source['needs_translation']:
+                    title = translator.translate(raw_title)
+                    summary = translator.translate(raw_summary[:300])
+                    time.sleep(1) # Pause for 1 second so we don't get banned by the free translator
+                else:
+                    title = raw_title
+                    summary = raw_summary
+
                 article = {
-                    "headline": english_title,
-                    "summary": english_summary,
-                    "source": source['name'],
+                    "headline": title,
+                    "summary": summary,
+                    "source": actual_publisher,  # This will now say "Reuters", "Al Jazeera", etc.
                     "country": source['country'],
-                    "verification_status": source['status'],  # NEW FIELD!
+                    "verification_status": source['status'],
                     "date": datetime.now().strftime("%B %d, %Y - %H:%M")
                 }
                 news_list.append(article)
@@ -83,7 +80,7 @@ def fetch_all_perspectives():
     with open("news.json", "w", encoding="utf-8") as f:
         json.dump(news_list, f, indent=4, ensure_ascii=False)
         
-    print(f"Successfully generated news.json with {len(news_list)} diverse perspectives!")
+    print(f"Successfully generated news.json with {len(news_list)} articles from hundreds of global sources!")
 
 if __name__ == "__main__":
-    fetch_all_perspectives()
+    fetch_massive_news()
