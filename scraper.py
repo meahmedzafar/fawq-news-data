@@ -66,10 +66,11 @@ def fetch_massive_news():
                 article = {
                     "headline": title,
                     "summary": summary,
-                    "source": actual_publisher,  # This will now say "Reuters", "Al Jazeera", etc.
+                    "source": actual_publisher,
                     "country": source['country'],
                     "verification_status": source['status'],
-                    "date": datetime.now().strftime("%B %d, %Y - %H:%M")
+                    "date": datetime.now().strftime("%B %d, %Y - %H:%M"),
+                    "link": entry.link  # <-- THE NEW LINE
                 }
                 news_list.append(article)
                 
